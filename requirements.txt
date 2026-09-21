@@ -1,8 +1,8 @@
 streamlit
 tensorflow
 pandas
-scikit-learn
 numpy
+scikit-learn
 scipy
 h5py
-protobuf
+protobufS
