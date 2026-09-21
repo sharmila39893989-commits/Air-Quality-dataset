@@ -4,9 +4,9 @@ import pickle
 import tensorflow as tf
 
 
-# --------------------------------------------------
-# PAGE CONFIGURATION
-# --------------------------------------------------
+# ==================================================
+# PAGE CONFIG
+# ==================================================
 
 st.set_page_config(
     page_title="Air Quality ANN Prediction",
@@ -15,67 +15,72 @@ st.set_page_config(
 )
 
 
-# --------------------------------------------------
+# ==================================================
 # TITLE
-# --------------------------------------------------
+# ==================================================
 
 st.title("🌫️ Air Quality Prediction using ANN")
+st.subheader("TensorFlow ANN - Classification + Regression")
 
 st.write(
-    "TensorFlow ANN based Classification and Regression"
+    "Enter the air pollutant values to predict "
+    "Air Quality Category and AQI."
 )
 
-
-# --------------------------------------------------
-# LOAD CLASSIFICATION MODEL
-# --------------------------------------------------
-
-classification_model = tf.keras.models.load_model(
-    "classification_model.h5"
-)
+st.divider()
 
 
-# --------------------------------------------------
-# LOAD REGRESSION MODEL
-# --------------------------------------------------
+# ==================================================
+# LOAD MODELS
+# ==================================================
 
-regression_model = tf.keras.models.load_model(
-    "regression_model.h5"
-)
+@st.cache_resource
+def load_models():
+
+    classification_model = tf.keras.models.load_model(
+        "classification_model.h5",
+        compile=False
+    )
+
+    regression_model = tf.keras.models.load_model(
+        "regression_model.h5",
+        compile=False
+    )
+
+    return classification_model, regression_model
 
 
-# --------------------------------------------------
-# LOAD CLASSIFICATION SCALER
-# --------------------------------------------------
+classification_model, regression_model = load_models()
+
+
+# ==================================================
+# LOAD SCALERS
+# ==================================================
 
 with open("classification_scaler.pkl", "rb") as file:
     classification_scaler = pickle.load(file)
 
 
-# --------------------------------------------------
+with open("regression_scaler.pkl", "rb") as file:
+    regression_scaler = pickle.load(file)
+
+
+# ==================================================
 # LOAD ENCODER
-# --------------------------------------------------
+# ==================================================
 
 with open("classification_encoder.pkl", "rb") as file:
     encoder = pickle.load(file)
 
 
-# --------------------------------------------------
-# LOAD REGRESSION SCALER
-# --------------------------------------------------
-
-with open("regression_scaler.pkl", "rb") as file:
-    regression_scaler = pickle.load(file)
-
-
-# --------------------------------------------------
+# ==================================================
 # INPUT SECTION
-# --------------------------------------------------
+# ==================================================
 
-st.subheader("🌫️ Enter Air Quality Values")
+st.header("🌍 Air Quality Input Values")
 
 
-col1, col2, col3 = st.columns(3)
+col1, col2 = st.columns(2)
 
 
 with col1:
@@ -92,13 +97,37 @@ with col1:
         value=80.0
     )
 
-
-with col2:
+    no = st.number_input(
+        "NO",
+        min_value=0.0,
+        value=10.0
+    )
 
     no2 = st.number_input(
         "NO2",
         min_value=0.0,
+        value=20.0
+    )
+
+
+with col2:
+
+    nox = st.number_input(
+        "NOx",
+        min_value=0.0,
         value=30.0
+    )
+
+    nh3 = st.number_input(
+        "NH3",
+        min_value=0.0,
+        value=20.0
+    )
+
+    co = st.number_input(
+        "CO",
+        min_value=0.0,
+        value=1.0
     )
 
     so2 = st.number_input(
@@ -108,95 +137,114 @@ with col2:
     )
 
 
-with col3:
-
-    co = st.number_input(
-        "CO",
-        min_value=0.0,
-        value=1.0
-    )
-
-    o3 = st.number_input(
-        "O3",
-        min_value=0.0,
-        value=40.0
-    )
-
-
-# --------------------------------------------------
+# ==================================================
 # PREDICTION BUTTON
-# --------------------------------------------------
+# ==================================================
 
-if st.button("🔮 Predict"):
+st.divider()
 
-    # ----------------------------------------------
-    # CREATE INPUT ARRAY
-    # ----------------------------------------------
+
+if st.button(
+    "🔮 Predict Air Quality",
+    use_container_width=True
+):
+
+    # ==================================================
+    # CREATE 8-FEATURE INPUT
+    # ==================================================
 
     input_data = np.array([
         pm25,
         pm10,
+        no,
         no2,
-        so2,
+        nox,
+        nh3,
         co,
-        o3
-    ]).reshape(1, -1)
+        so2
+    ], dtype=float).reshape(1, -1)
 
 
-    # ----------------------------------------------
+    # ==================================================
     # CLASSIFICATION
-    # ----------------------------------------------
+    # ==================================================
 
-    scaled_classification = classification_scaler.transform(
-        input_data
-    )
+    try:
+
+        scaled_classification = (
+            classification_scaler.transform(
+                input_data
+            )
+        )
+
+        classification_prediction = (
+            classification_model.predict(
+                scaled_classification,
+                verbose=0
+            )
+        )
+
+        class_index = np.argmax(
+            classification_prediction,
+            axis=1
+        )[0]
+
+        class_name = encoder.inverse_transform(
+            [class_index]
+        )[0]
+
+        st.success(
+            f"🌫️ Air Quality Category: {class_name}"
+        )
+
+    except Exception as e:
+
+        st.error(
+            f"Classification Error: {e}"
+        )
 
 
-    class_prediction = classification_model.predict(
-        scaled_classification,
-        verbose=0
-    )
-
-
-    class_index = np.argmax(
-        class_prediction,
-        axis=1
-    )[0]
-
-
-    class_name = encoder.inverse_transform(
-        [class_index]
-    )[0]
-
-
-    # ----------------------------------------------
-    # DISPLAY CLASSIFICATION RESULT
-    # ----------------------------------------------
-
-    st.success(
-        f"🌫️ Air Quality Category: {class_name}"
-    )
-
-
-    # ----------------------------------------------
+    # ==================================================
     # REGRESSION
-    # ----------------------------------------------
+    # ==================================================
 
-    scaled_regression = regression_scaler.transform(
-        input_data
-    )
+    try:
+
+        scaled_regression = (
+            regression_scaler.transform(
+                input_data
+            )
+        )
+
+        aqi_prediction = (
+            regression_model.predict(
+                scaled_regression,
+                verbose=0
+            )
+        )
+
+        predicted_aqi = float(
+            aqi_prediction[0][0]
+        )
+
+        st.info(
+            f"📊 Predicted AQI: {predicted_aqi:.2f}"
+        )
+
+    except Exception as e:
+
+        st.error(
+            f"Regression Error: {e}"
+        )
 
 
-    aqi_prediction = regression_model.predict(
-        scaled_regression,
-        verbose=0
-    )
+# ==================================================
+# FOOTER
+# ==================================================
 
+st.divider()
 
-    # ----------------------------------------------
-    # DISPLAY AQI RESULT
-    # ----------------------------------------------
-
-    st.info(
-        f"📊 Predicted AQI: {aqi_prediction[0][0]:.2f}"
-    )
+st.caption(
+    "Built using Python, TensorFlow, Keras, "
+    "Scikit-learn and Streamlit"
+)

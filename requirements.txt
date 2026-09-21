@@ -1,4 +1,8 @@
 streamlit
+tensorflow
 pandas
-numpy
 scikit-learn
+numpy
+scipy
+h5py
+protobuf
